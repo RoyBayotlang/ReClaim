@@ -7,6 +7,7 @@ import PageContainer from '../components/layout/PageContainer';
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
   '/items': 'Items',
+  '/items/new': 'Receive Item',
   '/inspections': 'Inspections',
   '/repairs': 'Repairs',
   '/quality-control': 'Quality Control',
@@ -18,7 +19,17 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
 
-  const title = pageTitles[location.pathname] ?? 'ReClaim';
+  let title = pageTitles[location.pathname];
+  if (!title) {
+    if (location.pathname.startsWith('/items/') && location.pathname.endsWith('/edit')) {
+      title = 'Edit Item';
+    } else if (location.pathname.startsWith('/items/')) {
+      title = 'Item Details';
+    } else {
+      title = 'ReClaim';
+    }
+  }
+
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
