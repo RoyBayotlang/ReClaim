@@ -4,27 +4,22 @@ import {
   ArrowLeft,
   Edit3,
   Trash2,
-  Calendar,
-  DollarSign,
   Package,
   Clock,
   ArrowRight,
   ShieldCheck,
-  Wrench,
-  Search,
-  CheckCircle2,
   AlertTriangle,
   Loader2,
-  ExternalLink,
-  ChevronRight,
-  Info,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getItem, getHistory, setStatus, updateItem, deleteItem } from '../lib/itemsApi';
-import { assess, peso, REC_META } from '../lib/assessment';
+import { listInspectionsForItem } from '../lib/inspectionsApi';
 import { formatDate, formatDateTime } from '../data/mockData';
-import { Item, HistoryEntry, Status, STATUS_META, NEXT } from '../types';
+import { Item, HistoryEntry, Status, STATUS_META, NEXT, Inspection } from '../types';
 import StatusBadge from '../components/ui/StatusBadge';
+import FinancialAssessmentPanel from '../components/inspections/FinancialAssessmentPanel';
+import InspectionModal from '../components/inspections/InspectionModal';
+import InspectionHistoryList from '../components/inspections/InspectionHistoryList';
 
 export default function ItemDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -32,10 +27,11 @@ export default function ItemDetailPage() {
 
   const [item, setItem] = useState<Item | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [inspections, setInspections] = useState<Inspection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingInspections, setLoadingInspections] = useState(false);
+  const [showInspectionModal, setShowInspectionModal] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [editingRepairEstimate, setEditingRepairEstimate] = useState(false);
-  const [newRepairEstimate, setNewRepairEstimate] = useState<number>(0);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -43,17 +39,34 @@ export default function ItemDetailPage() {
   const [transitioningTo, setTransitioningTo] = useState<Status | null>(null);
   const [transitionNote, setTransitionNote] = useState('');
 
+  const loadInspections = async () => {
+    if (!id) return;
+    try {
+      setLoadingInspections(true);
+      const data = await listInspectionsForItem(id);
+      setInspections(data);
+    } catch (err: any) {
+      console.error('Failed to load inspections:', err);
+    } finally {
+      setLoadingInspections(false);
+    }
+  };
+
   const loadData = async () => {
     if (!id) return;
     try {
       setLoading(true);
-      const [itemData, historyData] = await Promise.all([
+      const [itemData, historyData, inspectionsData] = await Promise.all([
         getItem(id),
         getHistory(id),
+        listInspectionsForItem(id).catch((e) => {
+          console.warn('Inspection fetch error:', e);
+          return [] as Inspection[];
+        }),
       ]);
       setItem(itemData);
-      setNewRepairEstimate(itemData.repair_estimate || 0);
       setHistory(historyData);
+      setInspections(inspectionsData);
     } catch (err: any) {
       toast.error(err.message || 'Failed to load item details');
       navigate('/items');
@@ -94,12 +107,6 @@ export default function ItemDetailPage() {
     );
   }
 
-  const assessment = assess(
-    item.purchase_cost || 0,
-    item.repair_estimate || 0,
-    item.resale_value || 0
-  );
-  const recMeta = REC_META[assessment.rec];
   const nextStatuses = NEXT[item.status] || [];
 
   const handleStatusChange = async (targetStatus: Status) => {
@@ -118,17 +125,18 @@ export default function ItemDetailPage() {
     }
   };
 
-  const handleUpdateRepairEstimate = async () => {
+  const handleUpdateRepairCostDirect = async (newCost: number) => {
     try {
-      await updateItem(item.id, {
-        repair_estimate: Math.max(0, Number(newRepairEstimate) || 0),
-      });
-      toast.success('Repair estimate updated');
-      setEditingRepairEstimate(false);
+      await updateItem(item.id, { repair_estimate: newCost });
+      toast.success('Repair cost estimate updated');
       await loadData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to update repair estimate');
     }
+  };
+
+  const handleInspectionSuccess = async (_newInspection: Inspection) => {
+    await loadData();
   };
 
   const handleDelete = async () => {
@@ -284,158 +292,20 @@ export default function ItemDetailPage() {
             )}
           </div>
 
-          {/* Financial Breakdown & Assessment */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                <DollarSign size={16} className="text-emerald-600" />
-                Financial Estimates & Refurbishment Economics
-              </h2>
-              <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${recMeta.cls}`}>
-                {recMeta.label}
-              </span>
-            </div>
+          {/* Phase 5: Refurbishment Financial Assessment Panel */}
+          <FinancialAssessmentPanel
+            item={item}
+            latestInspection={inspections[0] || null}
+            onUpdateRepairCost={handleUpdateRepairCostDirect}
+          />
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-              <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                <span className="text-[11px] text-gray-500 block">Purchase Cost</span>
-                <span className="text-sm font-bold text-gray-900 mt-0.5 block">
-                  {peso(item.purchase_cost)}
-                </span>
-              </div>
-
-              <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 relative group">
-                <div className="flex items-center justify-center gap-1">
-                  <span className="text-[11px] text-gray-500">Repair Estimate</span>
-                  {!editingRepairEstimate && (
-                    <button
-                      onClick={() => setEditingRepairEstimate(true)}
-                      className="text-gray-400 hover:text-emerald-600 text-[10px]"
-                      title="Quick edit repair cost"
-                    >
-                      <Edit3 size={11} />
-                    </button>
-                  )}
-                </div>
-                {editingRepairEstimate ? (
-                  <div className="flex items-center gap-1 mt-1">
-                    <input
-                      type="number"
-                      min={0}
-                      value={newRepairEstimate}
-                      onChange={(e) => setNewRepairEstimate(Number(e.target.value) || 0)}
-                      className="w-full text-xs p-1 border rounded"
-                    />
-                    <button
-                      onClick={handleUpdateRepairEstimate}
-                      className="text-xs px-1.5 py-1 bg-emerald-600 text-white rounded"
-                    >
-                      ✓
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-sm font-bold text-gray-900 mt-0.5 block">
-                    {peso(item.repair_estimate)}
-                  </span>
-                )}
-              </div>
-
-              <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                <span className="text-[11px] text-gray-500 block">Total Investment</span>
-                <span className="text-sm font-bold text-gray-900 mt-0.5 block">
-                  {peso(assessment.investment)}
-                </span>
-              </div>
-
-              <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                <span className="text-[11px] text-gray-500 block">Est. Resale Value</span>
-                <span className="text-sm font-bold text-emerald-700 mt-0.5 block">
-                  {peso(item.resale_value)}
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div>
-                <span className="text-emerald-900 font-semibold block">Expected Profit:</span>
-                <span
-                  className={`text-base font-bold ${
-                    assessment.profit >= 0 ? 'text-emerald-700' : 'text-red-600'
-                  }`}
-                >
-                  {peso(assessment.profit)}
-                </span>
-              </div>
-
-              <div>
-                <span className="text-emerald-900 font-semibold block">Projected Return on Investment:</span>
-                <span
-                  className={`text-base font-bold ${
-                    assessment.roi >= 25
-                      ? 'text-emerald-700'
-                      : assessment.roi >= 10
-                      ? 'text-amber-700'
-                      : 'text-red-600'
-                  }`}
-                >
-                  {assessment.roi.toFixed(1)}% ROI
-                </span>
-              </div>
-
-              <div className="sm:text-right">
-                <span className="text-gray-500 block text-[11px]">Rule Recommendation</span>
-                <span className="font-semibold text-gray-800">{recMeta.label}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Inspection Readiness & Inspection Module Slot */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <Search size={16} className="text-blue-600" />
-                <h2 className="text-sm font-semibold text-gray-900">Inspection & Diagnostics Preparation</h2>
-              </div>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">
-                {item.status === 'inspection' ? 'Inspection Ready' : 'Pipeline Linked'}
-              </span>
-            </div>
-
-            <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 text-xs text-blue-900 space-y-2">
-              <div className="flex items-start gap-2">
-                <Info size={16} className="text-blue-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-blue-950">
-                    Inspection Station Integration
-                  </p>
-                  <p className="text-blue-800 mt-0.5 leading-relaxed">
-                    This item is registered in the ReClaim inventory pipeline. Detailed hardware diagnostic checklists, functional test reports, and repair tickets will link directly to reference <span className="font-mono font-semibold">{item.reference}</span>.
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-2 flex flex-wrap items-center gap-2">
-                <Link
-                  to={`/inspections`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                >
-                  <Search size={13} />
-                  Open Inspection Module
-                </Link>
-                {item.status !== 'inspection' && (
-                  <button
-                    onClick={() => {
-                      setTransitioningTo('inspection');
-                      setTransitionNote('Moved to inspection queue');
-                    }}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors font-medium"
-                  >
-                    Queue for Inspection
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
+          {/* Phase 5: Hardware Inspection History & Diagnostics Module */}
+          <InspectionHistoryList
+            inspections={inspections}
+            loading={loadingInspections}
+            onRefresh={loadInspections}
+            onStartInspection={() => setShowInspectionModal(true)}
+          />
         </div>
 
         {/* Sidebar: Status History Timeline (1 col) */}
@@ -565,6 +435,16 @@ export default function ItemDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Phase 5: New Inspection Modal */}
+      {showInspectionModal && (
+        <InspectionModal
+          item={item}
+          isOpen={showInspectionModal}
+          onClose={() => setShowInspectionModal(false)}
+          onSuccess={handleInspectionSuccess}
+        />
       )}
     </div>
   );

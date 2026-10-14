@@ -77,3 +77,125 @@ export const NEXT: Record<Status, Status[]> = {
   sold: [],
 };
 
+// =============================================================
+// Phase 5: Inspections & Financial Assessment Types
+// =============================================================
+
+export type OverallCondition =
+  | 'GOOD'
+  | 'FAIR'
+  | 'POOR'
+  | 'NON_FUNCTIONAL'
+  | 'UNASSESSED';
+
+export type ComponentCondition =
+  | 'GOOD'
+  | 'MINOR_ISSUE'
+  | 'DAMAGED'
+  | 'NOT_TESTED'
+  | 'NOT_APPLICABLE';
+
+export type ComponentType = 'physical' | 'functional' | 'custom' | string;
+
+export interface InspectionResult {
+  id?: string;
+  inspection_id?: string;
+  component_name: string;
+  component_type: ComponentType;
+  condition: ComponentCondition;
+  notes: string | null;
+  created_at?: string;
+}
+
+export interface Inspection {
+  id: string;
+  item_id: string;
+  user_id: string;
+  inspected_by: string | null;
+  inspection_date: string;
+  overall_condition: OverallCondition;
+  general_notes: string | null;
+  created_at: string;
+  updated_at?: string;
+  results?: InspectionResult[];
+  item?: Item;
+}
+
+export const OVERALL_CONDITION_META: Record<
+  OverallCondition,
+  { label: string; cls: string; icon: string; description: string }
+> = {
+  GOOD: {
+    label: 'Good',
+    cls: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    icon: '🟢',
+    description: 'Minor or cosmetic wear only. Hardware intact and fully operational.',
+  },
+  FAIR: {
+    label: 'Fair',
+    cls: 'bg-amber-100 text-amber-800 border-amber-300',
+    icon: '🟡',
+    description: 'Moderate wear, minor defects or aging components present.',
+  },
+  POOR: {
+    label: 'Poor',
+    cls: 'bg-orange-100 text-orange-800 border-orange-300',
+    icon: '🟠',
+    description: 'Heavy wear, structural damage or multiple degraded components.',
+  },
+  NON_FUNCTIONAL: {
+    label: 'Non-Functional',
+    cls: 'bg-red-100 text-red-800 border-red-300',
+    icon: '🔴',
+    description: 'Fails to boot, power on, or has catastrophic core hardware failures.',
+  },
+  UNASSESSED: {
+    label: 'Unassessed',
+    cls: 'bg-gray-100 text-gray-700 border-gray-300',
+    icon: '⚪',
+    description: 'Intake pending diagnostic assessment or incomplete checklist.',
+  },
+};
+
+export const COMPONENT_CONDITION_META: Record<
+  ComponentCondition,
+  { label: string; badgeCls: string; activeCls: string; textCls: string; icon: string }
+> = {
+  GOOD: {
+    label: 'Good',
+    badgeCls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    activeCls: 'bg-emerald-600 text-white border-emerald-600 shadow-sm',
+    textCls: 'text-emerald-700',
+    icon: '✓',
+  },
+  MINOR_ISSUE: {
+    label: 'Minor Issue',
+    badgeCls: 'bg-amber-50 text-amber-700 border-amber-200',
+    activeCls: 'bg-amber-500 text-white border-amber-500 shadow-sm',
+    textCls: 'text-amber-700',
+    icon: '⚠',
+  },
+  DAMAGED: {
+    label: 'Damaged',
+    badgeCls: 'bg-red-50 text-red-700 border-red-200',
+    activeCls: 'bg-red-600 text-white border-red-600 shadow-sm',
+    textCls: 'text-red-700',
+    icon: '✗',
+  },
+  NOT_TESTED: {
+    label: 'Not Tested',
+    badgeCls: 'bg-gray-100 text-gray-600 border-gray-200',
+    activeCls: 'bg-gray-700 text-white border-gray-700 shadow-sm',
+    textCls: 'text-gray-500',
+    icon: '—',
+  },
+  NOT_APPLICABLE: {
+    label: 'Not Applicable',
+    badgeCls: 'bg-slate-100 text-slate-500 border-slate-200',
+    activeCls: 'bg-slate-500 text-white border-slate-500 shadow-sm',
+    textCls: 'text-slate-400',
+    icon: '⊘',
+  },
+};
+
+
